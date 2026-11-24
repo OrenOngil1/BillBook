@@ -1,0 +1,13 @@
+node_modules
+.agents
+.claude
+
+# Keep environment variables out of version control
+.env*
+!.env*.example
+
+/generated/prisma
+
+/src/generated/prisma
+
+dist

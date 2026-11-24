@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        project: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+      - run: npm ci
+        working-directory: ${{ matrix.project }}
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: ${{ matrix.project }}
+      - run: npx prisma generate
+        if: matrix.project == 'backend'
+        working-directory: ${{ matrix.project }}
+      - run: npm run typecheck
+        working-directory: ${{ matrix.project }}
+      - run: npm run lint
+        working-directory: ${{ matrix.project }}
+
+  test-backend:
+    runs-on: ubuntu-24.04
+    needs: lint-and-typecheck
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d testdb"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npx prisma generate
+        working-directory: backend
+      - run: npx prisma migrate deploy
+        working-directory: backend
+        env:
+          DATABASE_URL: postgres://test:test@localhost:5432/testdb
+      - run: npm run typecheck
+        working-directory: backend
+      - run: npm test
+        working-directory: backend
+        env:
+          DATABASE_URL: postgres://test:test@localhost:5432/testdb
+
+
+  test-frontend:
+    runs-on: ubuntu-24.04
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend 
+      - run: npm run build
+        working-directory: frontend
+
+  build-docker:
+    runs-on: ubuntu-24.04
+    needs: [test-backend, test-frontend]
+    steps:
+    - uses: actions/checkout@v7
+    - uses: docker/setup-buildx-action@v4
+    - name: Build backend image
+      uses: docker/build-push-action@v7
+      with:
+        context: ./backend
+        push: false
+        cache-from: type=ghs
+        cache-to: type=gha,mode=max
+    - name: Build frontend image
+      uses: docker/build-push-action@v7
+      with:
+        context: ./frontend
+        push: false
+        build-args: |
+          VITE_API_URL=http://localhost:3000
+        cache-from: type=ghs
+        cache-to: type=gha,mode=max
+
+
+

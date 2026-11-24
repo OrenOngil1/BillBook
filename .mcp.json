@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "billbook-db": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "cd backend && npx -y @bytebase/dbhub@1.6.1 --transport stdio --config ../dbhub.toml"
+      ]
+    }
+  }
+}

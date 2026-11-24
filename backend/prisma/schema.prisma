@@ -1,0 +1,101 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Currency {
+  USD
+  EUR
+  ILS
+}
+
+model User {
+  id Int @id @default(autoincrement())
+  username String? @db.VarChar(100)
+  email String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt()
+  deletedAt DateTime?
+
+  groups Group[]
+  expenses Expense[]
+  shares Share[]
+  settlementsReceived Settlement[] @relation("SettlementTo")
+  settlementsSent Settlement[] @relation("SettlementFrom")
+}
+
+model Group {
+  id Int @id @default(autoincrement())
+  name String @db.VarChar(100)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt()
+
+  members User[]
+  expenses Expense[]
+  settlements Settlement[]
+}
+
+model Expense {
+  id Int @id @default(autoincrement())
+  groupId Int
+  payerId Int
+  description String 
+  amountCents Int
+  currency Currency
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt()
+
+  shares Share[]
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  payer User @relation(fields: [payerId], references: [id], onDelete: Restrict)
+
+  @@index([groupId])
+  @@index([payerId])
+}
+
+model Share {
+  id Int @id @default(autoincrement())
+  expenseId Int
+  owerId Int
+  amountCents Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  ower User @relation(fields: [owerId], references: [id], onDelete: Restrict)
+
+  @@unique([expenseId, owerId])
+  @@index([owerId])
+}
+
+model Settlement {
+  id Int @id @default(autoincrement())
+  groupId Int
+  userToId Int
+  userFromId Int
+  amountCents Int
+  currency Currency
+
+  createdAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userTo User @relation("SettlementTo", fields: [userToId], references: [id], onDelete: Restrict)
+  userFrom User @relation("SettlementFrom", fields: [userFromId], references: [id], onDelete: Restrict)
+
+  @@index([groupId])
+  @@index([userToId])
+  @@index([userFromId])
+}

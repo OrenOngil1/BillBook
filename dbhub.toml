@@ -1,0 +1,16 @@
+# DBHub MCP server config. DATABASE_URL comes from backend/.env; no secret lives here.
+[[sources]]
+id = "billbook_dev"
+description = "BillBook local development database"
+dsn = "${DATABASE_URL}"
+lazy = true
+
+[[tools]]
+name = "execute_sql"
+source = "billbook_dev"
+readonly = true
+max_rows = 200
+
+[[tools]]
+name = "search_objects"
+source = "billbook_dev"
