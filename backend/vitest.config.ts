@@ -11,6 +11,7 @@ export default defineConfig({
         test :{
           name: "unit",
           sequence: { groupOrder: 1 },
+          env: { LOG_LEVEL: "silent" },
           include: ["src/**/*.test.ts"]
         }
       },

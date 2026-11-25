@@ -7,12 +7,12 @@ vi.mock("../db.ts", () => ({
 }));
 
 import { app } from "../app.js";
-import { USER_ID_HEADER } from "../middleware/currentUser.js";
+import { bearer } from "../../tests/auth.js";
 import type { Expense, Group, Settlement, User } from "../generated/prisma/client.js";
 import type { GroupForBalances } from "../domain/balances.js";
 
 const ROUTE = "/api/groups";
-const USER_ID = "1";
+const USER_ID = 1;
 
 beforeEach(() => {
     vi.resetAllMocks();
@@ -30,7 +30,7 @@ describe("group routes", () => {
         prismaMock.group.findUnique.mockResolvedValue(group as unknown as (Group & GroupForBalances));
         const res = await request(app)
             .get(`${ROUTE}/${group.id}`)
-            .set(USER_ID_HEADER, String(group.members[0]!.id))
+            .set(await bearer(group.members[0]!.id))
             .expect(200);
         
         expect(res.body.group.name).toStrictEqual(group.name);
@@ -42,14 +42,14 @@ describe("group routes", () => {
 
         const res = await request(app)
             .post(`${ROUTE}/`)
-            .set(USER_ID_HEADER, USER_ID)
-            .send({ name: group.name, userIds: group.userIds.map(({ id }) => id) })
+            .set(await bearer(USER_ID))
+            .send({ name: group.name, memberIds: group.userIds.map(({ id }) => id) })
             .expect(201);
 
         expect(res.body.name).toStrictEqual(group.name);
     });
 
-    it("creates a new expense paid by the header's user, ignoring any payerId in the body", async () => {
+    it("creates a new expense paid by the token's user, ignoring any payerId in the body", async () => {
         const expense = {
             groupId: 1,
             payerId: 2,
@@ -72,17 +72,17 @@ describe("group routes", () => {
 
         const res = await request(app)
             .post(`${ROUTE}/${expense.groupId}/expenses`)
-            .set(USER_ID_HEADER, USER_ID)
+            .set(await bearer(USER_ID))
             .send({ expense, shares })
             .expect(201);
         
         expect(res.body.description).toStrictEqual(expense.description);
         expect(prismaMock.expense.create).toHaveBeenCalledWith(expect.objectContaining({
-            data: expect.objectContaining({ payer: { connect: { id: Number(USER_ID) } } })
+            data: expect.objectContaining({ payer: { connect: { id: USER_ID } } })
         }));
     });
 
-    it("creates a new settlement from the header's user, ignoring any userFromId in the body", async () => {
+    it("creates a new settlement from the token's user, ignoring any userFromId in the body", async () => {
         const settlement = {
             amountCents: 1_00,
             currency: "ILS",
@@ -94,12 +94,12 @@ describe("group routes", () => {
 
         await request(app)
             .post(`${ROUTE}/1/settlements`)
-            .set(USER_ID_HEADER, USER_ID)
+            .set(await bearer(USER_ID))
             .send(settlement)
             .expect(201);
 
         expect(prismaMock.settlement.create).toHaveBeenCalledWith(expect.objectContaining({
-            data: expect.objectContaining({ userFrom: { connect: { id: Number(USER_ID) } } })
+            data: expect.objectContaining({ userFrom: { connect: { id: USER_ID } } })
         }));
     });
 });
@@ -116,7 +116,7 @@ describe(`GET ${ROUTE}/:id`, () => {
 
         const res = await request(app)
             .get(`${ROUTE}/1`)
-            .set(USER_ID_HEADER, String(userId))
+            .set(await bearer(userId))
             .expect(404);
 
         expect((res.body.error as string).toLowerCase()).toMatch(/group|not|found/i);
@@ -124,28 +124,30 @@ describe(`GET ${ROUTE}/:id`, () => {
 });
 
 describe(`POST ${ROUTE}/`, () => {
-    it("return 422 when someone tries to create a group with no members", async () => {
-        const res = await request(app)
+    it("adds the creator as a member even when memberIds is empty", async () => {
+        await request(app)
             .post(`${ROUTE}/`)
-            .set(USER_ID_HEADER, USER_ID)
-            .send({ name: "group with no members", userIds: [] })
-            .expect(422);
-        
-        expect(prismaMock.group.create).not.toHaveBeenCalled();
-        expect((res.body.error as string).toLowerCase()).toMatch(/group|must|one|member/i);
+            .set(await bearer(USER_ID))
+            .send({ name: "just me", memberIds: [] })
+            .expect(201);
+
+        expect(prismaMock.group.create).toHaveBeenCalledWith(expect.objectContaining({
+            data: expect.objectContaining({ members: { connect: [{ id: USER_ID }] } })
+        }));
     });
 })
 
 describe(`POST ${ROUTE}/:id/expenses`, () => {
-    // The sender sends the header and also pays.
+    // The sender's token identifies the payer.
     it.each([
         { cond: "group not found", groupId: 0, senderId: 1, memberId: 2, findManyValue: [] }, 
         { cond: "sender is not a member", groupId: 1, senderId: 3, memberId: 1, findManyValue: [{ id: 1 }] }
     ])("returns 404 when $cond", async ({ groupId, senderId, memberId, findManyValue }) => {
        const expense = {
         description: "I belong to no group",
-        amountCents: 20_00
-       }; 
+        amountCents: 20_00,
+        currency: "ILS"
+       };
        const shares = [
         { 
             owerId: senderId, 
@@ -160,7 +162,7 @@ describe(`POST ${ROUTE}/:id/expenses`, () => {
 
        const res = await request(app)
             .post(`${ROUTE}/${groupId}/expenses`)
-            .set(USER_ID_HEADER, String(senderId))
+            .set(await bearer(senderId))
             .send({ expense, shares })
             .expect(404)
         
@@ -172,11 +174,12 @@ describe(`POST ${ROUTE}/:id/expenses`, () => {
         const expense = {
             description: "expense 1",
             amountCents: 10_00,
+            currency: "ILS"
         };
 
         const res = await request(app)
             .post(`${ROUTE}/1/expenses`)
-            .set(USER_ID_HEADER, USER_ID)
+            .set(await bearer(USER_ID))
             .send({ expense, shares: [] })
             .expect(422);
         
@@ -188,6 +191,7 @@ describe(`POST ${ROUTE}/:id/expenses`, () => {
         const expense = {
             description: "expense 1",
             amountCents: 10_00,
+            currency: "ILS"
         };
 
         const shares = [
@@ -203,7 +207,7 @@ describe(`POST ${ROUTE}/:id/expenses`, () => {
         
         const res = await request(app)
             .post(`${ROUTE}/1/expenses`)
-            .set(USER_ID_HEADER, USER_ID)
+            .set(await bearer(USER_ID))
             .send({ expense, shares })
             .expect(422);
         
@@ -214,7 +218,8 @@ describe(`POST ${ROUTE}/:id/expenses`, () => {
     it("returns 422 when the creditor doesn't have a share", async () => {
         const expense = {
             description: "expense 1",
-            amountCents: 10_00
+            amountCents: 10_00,
+            currency: "ILS"
         };
 
         const shares = [
@@ -223,7 +228,7 @@ describe(`POST ${ROUTE}/:id/expenses`, () => {
         
         const res = await request(app)
             .post(`${ROUTE}/1/expenses`)
-            .set(USER_ID_HEADER, USER_ID)
+            .set(await bearer(USER_ID))
             .send({ expense, shares })
             .expect(422);
         
@@ -244,7 +249,7 @@ describe(`POST ${ROUTE}/:id/settlements`, () => {
 
         const res = await request(app)
             .post(`${ROUTE}/1/settlements`)
-            .set(USER_ID_HEADER, USER_ID)
+            .set(await bearer(USER_ID))
             .send(settlement)
             .expect(422);
 
@@ -253,10 +258,11 @@ describe(`POST ${ROUTE}/:id/settlements`, () => {
     });
 });
 
-describe("current user", () => {
+describe("authentication", () => {
     it.each([
         { cond: "the header is missing", headers: {} },
-        { cond: "the header isn't a user id", headers: { [USER_ID_HEADER]: "abc" } }
+        { cond: "the header isn't a bearer token", headers: { Authorization: "Basic abc" } },
+        { cond: "the token isn't a valid JWT", headers: { Authorization: "Bearer abc" } }
     ])("returns 401 when $cond", async ({ headers }) => {
         await request(app).get(`${ROUTE}/`).set(headers).expect(401);
 

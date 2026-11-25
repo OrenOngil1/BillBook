@@ -18,10 +18,17 @@ enum Currency {
   ILS
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
   id Int @id @default(autoincrement())
   username String? @db.VarChar(100)
   email String? @unique
+  password String? 
+  role Role @default(USER)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt()
@@ -32,6 +39,7 @@ model User {
   shares Share[]
   settlementsReceived Settlement[] @relation("SettlementTo")
   settlementsSent Settlement[] @relation("SettlementFrom")
+  refreshTokens RefreshToken[]
 }
 
 model Group {
@@ -98,4 +106,17 @@ model Settlement {
   @@index([groupId])
   @@index([userToId])
   @@index([userFromId])
+}
+
+model RefreshToken {
+  token String @id
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }

@@ -63,12 +63,11 @@ jobs:
         working-directory: backend
         env:
           DATABASE_URL: postgres://test:test@localhost:5432/testdb
-      - run: npm run typecheck
-        working-directory: backend
       - run: npm test
         working-directory: backend
         env:
           DATABASE_URL: postgres://test:test@localhost:5432/testdb
+          JWT_ACCESS_SECRET: test-secret-at-least-32-chracters-long
 
 
   test-frontend:

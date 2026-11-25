@@ -1,7 +1,10 @@
 import createError from "http-errors";
 import type { Expense, Share } from "../generated/prisma/client.js";
 
-export function assertValidSplit(expense: Expense, shares: Share[]) {
+export function assertValidSplit(
+    expense: Pick<Expense, "payerId" | "amountCents">,
+    shares: Pick<Share, "owerId" | "amountCents">[]
+) {
     if (shares.length < 1) {
         throw createError(422, "Expenses must be shared by some people");
     }

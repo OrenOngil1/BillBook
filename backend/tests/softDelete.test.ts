@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import request from "supertest";
 import { prisma } from "../src/db.js";
 import { app } from "../src/app.js";
-import { USER_ID_HEADER } from "../src/middleware/currentUser.js";
+import { bearer } from "./auth.js";
 import { cleandb, createUser, createGroup } from "../prisma/factories.js";
 
 const SHARE_CENTS = 100_00;
@@ -39,7 +39,7 @@ describe("soft delete", () => {
 
         await request(app)
             .post(`/api/groups/${group.id}/expenses`)
-            .set(USER_ID_HEADER, String(alice.id))
+            .set(await bearer(alice.id))
             .send({
                 expense: { description: "rent", amountCents: 2 * SHARE_CENTS, currency: "ILS" },
                 shares: [

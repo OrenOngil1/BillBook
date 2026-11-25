@@ -1,5 +1,7 @@
-import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import express from "express";
+import { pino } from "pino";
+import { pinoHttp } from "pino-http";
 import request from "supertest";
 import createError from "http-errors";
 import { Prisma } from "../generated/prisma/client.js";
@@ -10,6 +12,7 @@ const SECRET = "secret detail";
 
 function appThatThrows(err: Error) {
     const app = express();
+    app.use(pinoHttp({ logger: pino({ level: "silent" }) }));
     app.use(express.json());
     app.all(ROUTE, () => {
         throw err;
@@ -17,14 +20,6 @@ function appThatThrows(err: Error) {
     app.use(errorHandler);
     return app;
 }
-
-beforeEach(() => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-});
-
-afterEach(() => {
-    vi.restoreAllMocks();
-});
 
 describe("errorHandler", () => {
     it("hides the message of a 5xx http error", async () => {

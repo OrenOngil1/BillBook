@@ -11,6 +11,7 @@ function createPrismaClient() {
         adapter, 
         omit: {
             user: {
+                password: true,
                 deletedAt: true
             }
         }
@@ -19,7 +20,7 @@ function createPrismaClient() {
 
 const globalForPrisma = globalThis as typeof globalThis & { 
     prisma: ReturnType<typeof createPrismaClient> | undefined 
-}
+};
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 

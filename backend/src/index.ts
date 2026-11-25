@@ -1,11 +1,12 @@
 import { app } from "./app.js";
 import { env } from "./env.js";
 import { prisma } from "./db.js";
+import { logger } from "./logger.js";
 
 const SHUTDOWN_TIMEOUT = 5_000;
 
 const server = app.listen(env.PORT, () => {
-    console.log("Server listening on port", env.PORT);
+    logger.info(`Server listening on port ${env.PORT}`);
 });
 
 let isShuttingDown = false;
@@ -15,10 +16,10 @@ function gracefulShutdown(signal: NodeJS.Signals) {
         return;
     }
     isShuttingDown = true;
-    console.log(`Server received signal ${signal}, starting gracefule shutdown`);
+    logger.info(`Server received signal ${signal}, starting gracefule shutdown`);
 
     const timeout = setTimeout(() => {
-        console.error("Graceful shutdown stalled, forcing exit");
+        logger.error("Graceful shutdown stalled, forcing exit");
         process.exit(1);
     }, SHUTDOWN_TIMEOUT);
 
@@ -26,7 +27,7 @@ function gracefulShutdown(signal: NodeJS.Signals) {
         try {
             await prisma.$disconnect();
         } catch(err) {
-            console.error("Resource disposale error:", err);
+            logger.error(err, "Resource disposale error");
             process.exit(1);
         }
 

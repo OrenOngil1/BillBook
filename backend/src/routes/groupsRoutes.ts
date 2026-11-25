@@ -4,14 +4,18 @@ import { prisma } from '../db.js';
 import { assertGroupMembers } from '../domain/groups.js';
 import { calculateBalance } from '../domain/balances.js';
 import { assertValidSplit } from '../domain/expenses.js';
-import type { Expense, Share } from '../generated/prisma/client.js';
+import { authenticate } from '../middleware/authenticate.js';
+import { createExpenseSchema, createGroupSchema, createSettlementSchema } from '../schemas/groups.js';
+import type { CreateExpenseInput, CreateGroupInput, CreateSettlementInput } from '../schemas/groups.js';
+import { validate } from '../middleware/validate.js';
 
 const router = Router();
 
-router.get("/", async (req: Request, res: Response) => {
-    const { userId } = req;
+router.get("/", authenticate, async (req: Request, res: Response) => {
+    const { id: userId, role } = req.user!;
+
     const groupsFullDetails = await prisma.group.findMany({
-        where: { members: { some: { id: userId } } },
+        where: role === "ADMIN" ? {} : { members: { some: { id: userId } } },
         omit: { updatedAt: true },
         include: {
             members: {
@@ -47,10 +51,10 @@ router.get("/", async (req: Request, res: Response) => {
     res.json(resBody);
 });
 
-router.get("/:id", async (req: Request, res: Response) => {
+router.get("/:id", authenticate, async (req: Request, res: Response) => {
 
     const groupId = Number(req.params.id);
-    const { userId } = req;
+    const { id: userId, role } = req.user!;
 
     const group = await prisma.group.findUnique({
         where: { id: groupId },
@@ -80,7 +84,7 @@ router.get("/:id", async (req: Request, res: Response) => {
         }
     });
 
-    if(!group || !group.members.some((member) => member.id === userId)) {
+    if(!group || (group.members.every((member) => member.id !== userId) && role !== "ADMIN")) {
         res.status(404).json({ error: "Group not found" });
         return;
     }
@@ -90,19 +94,16 @@ router.get("/:id", async (req: Request, res: Response) => {
     res.json({ group, balances });
 });
 
-router.post("/", async (req: Request, res: Response) => {
-    const { name, userIds } = req.body;
-    if (userIds.length < 1) {
-        res.status(422).json({ error: "A group must have at least one member" });
-        return;
-    }
+router.post("/", authenticate, validate(createGroupSchema), async (req: Request, res: Response) => {
+    const { id: userId } = req.user!
+    const { name, memberIds }: CreateGroupInput = req.body;
 
     const group = await prisma.group.create({
         omit: { updatedAt: true },
         data: {
             name,
             members: {
-                connect: userIds.map((id: number) => ({ id })),
+                connect: [...memberIds.map((id: number) => ({ id })), { id: userId }],
             }
         },
         include: {
@@ -115,17 +116,17 @@ router.post("/", async (req: Request, res: Response) => {
     res.status(201).json(group);
 });
 
-router.post("/:id/expenses", async (req: Request, res: Response) => {
+router.post("/:id/expenses", authenticate, validate(createExpenseSchema), async (req: Request, res: Response) => {
     const groupId = Number(req.params.id);
-    const payerId = req.userId;
-    const { expense, shares } = req.body;
-    const { description, amountCents, currency }: Expense = expense;
+    const { id: payerId } = req.user!;
+    const { expense, shares }: CreateExpenseInput = req.body;
+    const { description, amountCents, currency } = expense;
 
     assertValidSplit({ ...expense, payerId }, shares);
     await assertGroupMembers(
         groupId,
         payerId,
-        ...shares.map(({ owerId } : Share) => owerId)
+        ...shares.map((shr) => shr.owerId)
     );
 
     const result = await prisma.expense.create({
@@ -146,10 +147,10 @@ router.post("/:id/expenses", async (req: Request, res: Response) => {
     res.status(201).json(result);
 });
 
-router.post("/:id/settlements", async (req: Request, res: Response) => {
+router.post("/:id/settlements", authenticate, validate(createSettlementSchema), async (req: Request, res: Response) => {
     const groupId = Number(req.params.id);
-    const userFromId = req.userId;
-    const { userToId, amountCents, currency } = req.body;
+    const { id: userFromId } = req.user!;
+    const { userToId, amountCents, currency }: CreateSettlementInput = req.body;
 
     if (userFromId === userToId) {
         res.status(422).json({ error: "You can't settle with yourself" })
