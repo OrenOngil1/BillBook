@@ -30,7 +30,7 @@ describe("group routes", () => {
         prismaMock.group.findUnique.mockResolvedValue(group as unknown as (Group & GroupForBalances));
         const res = await request(app)
             .get(`${ROUTE}/${group.id}`)
-            .set(await bearer(group.members[0]!.id))
+            .set(await bearer(group.members[0].id))
             .expect(200);
         
         expect(res.body.group.name).toStrictEqual(group.name);

@@ -15,7 +15,7 @@ const DUMMY_PASSWORD_HASH = await hashPassword(randomUUID());
 const router = Router();
 
 router.post("/register", validate(registerSchema), async (req: Request, res: Response) => {
-    const { email, username, password }: RegisterInput = req.body;
+    const { email, username, password } = req.body as RegisterInput;
 
     const hashedPassword = await hashPassword(password);
 
@@ -44,7 +44,7 @@ router.post("/register", validate(registerSchema), async (req: Request, res: Res
 });
 
 router.post("/login", validate(loginSchema), async (req: Request, res: Response) => {
-    const { email, password }: LoginInput = req.body;
+    const { email, password } = req.body as LoginInput;
     const found = await prisma.user.findUnique({
         where: { email },
         omit: { password: false }
@@ -80,7 +80,7 @@ router.post("/login", validate(loginSchema), async (req: Request, res: Response)
 });
 
 router.post("/refresh", async (req: Request, res: Response) => {
-    const oldToken = req.cookies.refreshToken;
+    const oldToken: unknown = req.cookies.refreshToken;
     if (typeof oldToken !== "string") {
         res.status(401).json({ error: "Missing or invalid token" });
         return;
@@ -130,7 +130,7 @@ router.post("/refresh", async (req: Request, res: Response) => {
 
 
 router.post("/logout", async (req: Request, res: Response) => {
-    const refreshToken = req.cookies.refreshToken;
+    const refreshToken: unknown = req.cookies.refreshToken;
     if (typeof refreshToken !== "string") {
         res.status(204).end();
         return;

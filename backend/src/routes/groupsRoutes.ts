@@ -96,7 +96,7 @@ router.get("/:id", authenticate, async (req: Request, res: Response) => {
 
 router.post("/", authenticate, validate(createGroupSchema), async (req: Request, res: Response) => {
     const { id: userId } = req.user!
-    const { name, memberIds }: CreateGroupInput = req.body;
+    const { name, memberIds } = req.body as CreateGroupInput;
 
     const group = await prisma.group.create({
         omit: { updatedAt: true },
@@ -119,7 +119,7 @@ router.post("/", authenticate, validate(createGroupSchema), async (req: Request,
 router.post("/:id/expenses", authenticate, validate(createExpenseSchema), async (req: Request, res: Response) => {
     const groupId = Number(req.params.id);
     const { id: payerId } = req.user!;
-    const { expense, shares }: CreateExpenseInput = req.body;
+    const { expense, shares } = req.body as CreateExpenseInput;
     const { description, amountCents, currency } = expense;
 
     assertValidSplit({ ...expense, payerId }, shares);
@@ -150,7 +150,7 @@ router.post("/:id/expenses", authenticate, validate(createExpenseSchema), async 
 router.post("/:id/settlements", authenticate, validate(createSettlementSchema), async (req: Request, res: Response) => {
     const groupId = Number(req.params.id);
     const { id: userFromId } = req.user!;
-    const { userToId, amountCents, currency }: CreateSettlementInput = req.body;
+    const { userToId, amountCents, currency } = req.body as CreateSettlementInput;
 
     if (userFromId === userToId) {
         res.status(422).json({ error: "You can't settle with yourself" })

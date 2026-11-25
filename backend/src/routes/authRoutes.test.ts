@@ -39,7 +39,7 @@ beforeAll(async () => {
 });
 
 // Interactive transactions get the mock as `tx`; batch transactions just await their queries.
-function runTransaction(arg: unknown) {
+function runTransaction(arg: unknown): unknown {
     return typeof arg === "function" ? arg(prismaMock) : Promise.all(arg as unknown[]);
 }
 
@@ -151,7 +151,7 @@ describe(`POST ${ROUTE}/refresh`, () => {
     }
 
     it("swaps the old token for a new one, looking it up by its hash", async () => {
-        prismaMock.refreshToken.findUnique.mockResolvedValue(storedToken(daysFrom(1)) as never);
+        prismaMock.refreshToken.findUnique.mockResolvedValue(storedToken(daysFrom(1)));
         prismaMock.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
 
         const res = await refresh().expect(200);
@@ -180,7 +180,7 @@ describe(`POST ${ROUTE}/refresh`, () => {
         { cond: "the token is unknown", stored: null },
         { cond: "the token has expired", stored: storedToken(daysFrom(-1)) }
     ])("returns 401 and clears the cookie when $cond", async ({ stored }) => {
-        prismaMock.refreshToken.findUnique.mockResolvedValue(stored as never);
+        prismaMock.refreshToken.findUnique.mockResolvedValue(stored);
 
         const res = await refresh().expect(401);
 
@@ -190,7 +190,7 @@ describe(`POST ${ROUTE}/refresh`, () => {
     });
 
     it("returns 401 when a concurrent refresh already used the token", async () => {
-        prismaMock.refreshToken.findUnique.mockResolvedValue(storedToken(daysFrom(1)) as never);
+        prismaMock.refreshToken.findUnique.mockResolvedValue(storedToken(daysFrom(1)));
         prismaMock.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
 
         await refresh().expect(401);

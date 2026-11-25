@@ -43,7 +43,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
             res.status(prismaError.status).json({ error: prismaError.message });
             return;
         }
-        req.log.error(err, `Prisma error ${err.code}`);
+        req.log.error(err, "Prisma error");
         res.status(500).json({ error: "Database error" });
         return;
     }
